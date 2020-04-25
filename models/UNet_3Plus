@@ -4,7 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from layers import unetConv2
 from init_weights import init_weights
-
+'''
+    UNet 3+
+'''
 class UNet_3Plus(nn.Module):
 
     def __init__(self, in_channels=3, n_classes=1, feature_scale=4, is_deconv=True, is_batchnorm=True):
@@ -237,9 +239,11 @@ class UNet_3Plus(nn.Module):
 
         d1 = self.outconv1(hd1)  # d1->320*320*n_classes
         return F.sigmoid(d1)
-
+    
+'''
+    UNet 3+ with deep supervision
+'''
 class UNet_3Plus_DeepSup(nn.Module):
-
     def __init__(self, in_channels=3, n_classes=1, feature_scale=4, is_deconv=True, is_batchnorm=True):
         super(UNet_3Plus_DeepSup, self).__init__()
         self.is_deconv = is_deconv
@@ -421,8 +425,7 @@ class UNet_3Plus_DeepSup(nn.Module):
         self.outconv2 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
         self.outconv3 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
         self.outconv4 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
-        self.outconv5 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
-        self.outconv6 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
+        self.outconv5 = nn.Conv2d(filters[4], n_classes, 3, padding=1)
 
         # initialise weights
         for m in self.modules():
@@ -480,7 +483,6 @@ class UNet_3Plus_DeepSup(nn.Module):
         hd1 = self.relu1d_1(self.bn1d_1(self.conv1d_1(
             torch.cat((h1_Cat_hd1, hd2_UT_hd1, hd3_UT_hd1, hd4_UT_hd1, hd5_UT_hd1), 1)))) # hd1->320*320*UpChannels
 
-
         d5 = self.outconv5(hd5)
         d5 = self.upscore5(d5) # 16->256
 
@@ -495,7 +497,10 @@ class UNet_3Plus_DeepSup(nn.Module):
 
         d1 = self.outconv1(hd1) # 256
         return F.sigmoid(d1), F.sigmoid(d2), F.sigmoid(d3), F.sigmoid(d4), F.sigmoid(d5)
-
+    
+'''
+    UNet 3+ with deep supervision and class-guided module
+'''
 class UNet_3Plus_DeepSup_CGM(nn.Module):
 
     def __init__(self, in_channels=3, n_classes=1, feature_scale=4, is_deconv=True, is_batchnorm=True):
@@ -679,12 +684,11 @@ class UNet_3Plus_DeepSup_CGM(nn.Module):
         self.outconv2 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
         self.outconv3 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
         self.outconv4 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
-        self.outconv5 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
-        self.outconv6 = nn.Conv2d(self.UpChannels, n_classes, 3, padding=1)
+        self.outconv5 = nn.Conv2d(filters[4], n_classes, 3, padding=1)
 
         self.cls = nn.Sequential(
                     nn.Dropout(p=0.5),
-                    nn.Conv2d(512, 2, 1),
+                    nn.Conv2d(filters[4], 2, 1),
                     nn.AdaptiveMaxPool2d(1),
                     nn.Sigmoid())
 
@@ -694,6 +698,13 @@ class UNet_3Plus_DeepSup_CGM(nn.Module):
                 init_weights(m, init_type='kaiming')
             elif isinstance(m, nn.BatchNorm2d):
                 init_weights(m, init_type='kaiming')
+
+    def dotProduct(self,seg,cls):
+        B, N, H, W = seg.size()
+        seg = seg.view(B, N, H * W)
+        final = torch.einsum("ijk,ij->ijk", [seg, cls])
+        final = final.view(B, N, H, W)
+        return final
 
     def forward(self, inputs):
         ## -------------Encoder-------------
@@ -748,7 +759,6 @@ class UNet_3Plus_DeepSup_CGM(nn.Module):
         hd5_UT_hd1 = self.hd5_UT_hd1_relu(self.hd5_UT_hd1_bn(self.hd5_UT_hd1_conv(self.hd5_UT_hd1(hd5))))
         hd1 = self.relu1d_1(self.bn1d_1(self.conv1d_1(
             torch.cat((h1_Cat_hd1, hd2_UT_hd1, hd3_UT_hd1, hd4_UT_hd1, hd5_UT_hd1), 1)))) # hd1->320*320*UpChannels
-
 
         d5 = self.outconv5(hd5)
         d5 = self.upscore5(d5) # 16->256
