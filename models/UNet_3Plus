@@ -765,5 +765,9 @@ class UNet_3Plus_DeepSup_CGM(nn.Module):
         d1 = self.outconv1(hd1) # 256
 
         d1 = self.dotProduct(d1, cls_branch_max)
+        d2 = self.dotProduct(d2, cls_branch_max)
+        d3 = self.dotProduct(d3, cls_branch_max)
+        d4 = self.dotProduct(d4, cls_branch_max)
+        d5 = self.dotProduct(d5, cls_branch_max)
 
         return F.sigmoid(d1), F.sigmoid(d2), F.sigmoid(d3), F.sigmoid(d4), F.sigmoid(d5)
